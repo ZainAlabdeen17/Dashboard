@@ -6,24 +6,6 @@ import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import '../widgets/stat_card.dart';
 
-class ApartmentDataPagerDelegate extends DataPagerDelegate {
-  ApartmentDataPagerDelegate(this.onPageChanged, this.dataPagerController);
-
-  final Function(int) onPageChanged;
-  final DataPagerController dataPagerController;
-
-  @override
-  Future<bool> handlePageChange(int oldPageIndex, int newPageIndex) async {
-    onPageChanged(newPageIndex + 1); // Convert to 1-based indexing
-    // The controller will be updated in the parent widget after data loads
-    return true;
-  }
-
-  bool canMoveToPage(int pageIndex) {
-    return true; // Allow moving to any page
-  }
-}
-
 class ApartmentDataSource extends DataGridSource {
   ApartmentDataSource(
     this.apartments,
@@ -48,31 +30,42 @@ class ApartmentDataSource extends DataGridSource {
         cells: [
           DataGridCell<String>(
             columnName: 'name',
-            value: apartment.attributes.title,
+            value: apartment.attributes.title.isNotEmpty
+                ? apartment.attributes.title
+                : 'N/A',
           ),
           DataGridCell<String>(
             columnName: 'location',
-            value: apartment.attributes.location.fullAddress,
+            value: apartment.attributes.location.fullAddress.isNotEmpty
+                ? apartment.attributes.location.fullAddress
+                : 'N/A',
           ),
           DataGridCell<String>(
             columnName: 'area',
-            value: '${apartment.attributes.specs.area}',
+            value:
+                '${apartment.attributes.specs.area > 0 ? apartment.attributes.specs.area : 0}',
           ),
           DataGridCell<String>(
             columnName: 'price',
-            value: apartment.attributes.formattedPrice,
+            value: apartment.attributes.formattedPrice.isNotEmpty
+                ? apartment.attributes.formattedPrice
+                : 'N/A',
           ),
           DataGridCell<String>(
             columnName: 'rooms',
-            value: '${apartment.attributes.specs.rooms}',
+            value:
+                '${apartment.attributes.specs.rooms > 0 ? apartment.attributes.specs.rooms : 0}',
           ),
           DataGridCell<String>(
             columnName: 'floor',
-            value: '${apartment.attributes.specs.floor}',
+            value:
+                '${apartment.attributes.specs.floor >= 0 ? apartment.attributes.specs.floor : 0}',
           ),
           DataGridCell<String>(
             columnName: 'features',
-            value: apartment.attributes.features.join(', '),
+            value: apartment.attributes.features.isNotEmpty
+                ? apartment.attributes.features.join(', ')
+                : 'No features',
           ),
           DataGridCell<String>(columnName: 'actions', value: apartment.id),
         ],
@@ -227,23 +220,13 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
   int occupiedApartments = 0;
   int maintenanceApartments = 0;
 
-  // Pagination variables
-  int currentPage = 1;
-  int totalPages = 1;
-  int perPage = 15;
-  int totalItems = 0;
-
   late ApartmentDataSource _apartmentDataSource;
-  late DataPagerController _dataPagerController;
   late DataGridController _dataGridController;
-  late ApartmentDataPagerDelegate _dataPagerDelegate;
-  late UniqueKey _pagerKey;
 
   Future<void> getAllApartments() async {
     if (mounted) {
       setState(() {
         isLoading = true;
-        currentPage = 1;
       });
     }
 
@@ -264,27 +247,30 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
         }
       },
       (data) {
-        final paginationData = data;
+        final apartmentsData = data;
         if (mounted) {
           setState(() {
-            apartmentsList = List<Apartment>.from(
-              paginationData['data'].map((item) => Apartment.fromJson(item)),
-            );
-            _apartmentDataSource.updateDataSource(
-              apartmentsList,
-              totalItems: totalItems,
-            );
+            // Safely parse apartments data with null checking
+            final dataList = apartmentsData['data'];
+            if (dataList is List && dataList.isNotEmpty) {
+              apartmentsList = List<Apartment>.from(
+                dataList
+                    .map((item) {
+                      try {
+                        return Apartment.fromJson(item);
+                      } catch (e) {
+                        // Log error and skip invalid items
+                        return null;
+                      }
+                    })
+                    .where((item) => item != null)
+                    .cast<Apartment>(),
+              );
+            } else {
+              apartmentsList = [];
+            }
 
-            // Since API doesn't support pagination, show all apartments
-            totalItems = apartmentsList.length;
-            perPage = totalItems; // Show all items in one page
-            totalPages = 1; // Only one page since no pagination
-
-            // Update the pager controller to highlight current page (0-based indexing)
-            _dataPagerController.selectedPageIndex = 0;
-
-            // Force pager to rebuild
-            _pagerKey = UniqueKey();
+            _apartmentDataSource.updateDataSource(apartmentsList);
 
             // Calculate stats
             _calculateStats();
@@ -313,25 +299,13 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
   @override
   void initState() {
     super.initState();
-    _dataPagerController = DataPagerController();
     _dataGridController = DataGridController();
-    _pagerKey = UniqueKey();
-    _dataPagerDelegate = ApartmentDataPagerDelegate(
-      _handlePageChange,
-      _dataPagerController,
-    );
     _apartmentDataSource = ApartmentDataSource(
       apartmentsList,
       _viewApartmentDetails,
       _editApartment,
       _deleteApartment,
-      totalItems: totalItems,
     );
-    getAllApartments();
-  }
-
-  void _handlePageChange(int pageNumber) {
-    // Since API doesn't support pagination, just refresh the data
     getAllApartments();
   }
 
@@ -668,30 +642,6 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                           controller: _dataGridController,
                         ),
                       ),
-                    ),
-                  if (!isLoading && apartmentsList.isNotEmpty)
-                    Column(
-                      children: [
-                        // Items count display
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            'Showing $totalItems apartments',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        if (totalPages > 1)
-                          SfDataPager(
-                            key: _pagerKey,
-                            controller: _dataPagerController,
-                            pageCount: totalPages.toDouble(),
-                            direction: Axis.horizontal,
-                            delegate: _dataPagerDelegate,
-                          ),
-                      ],
                     ),
                 ],
               ),
