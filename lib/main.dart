@@ -1,4 +1,7 @@
+import 'package:dashboard/models/user.dart';
 import 'package:flutter/material.dart';
+import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/navigation_item.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/users_management_page.dart';
@@ -19,22 +22,30 @@ class MyApp extends StatelessWidget {
       title: 'Dashboard',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'Arial'),
-      home: const LoginPage(),
+      home: SplashScreen(),
+      routes: {'/dashboard': (context) => const DashboardScreen()},
     );
   }
 }
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final User? user;
+  const DashboardScreen({super.key, this.user});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  late User? currentUser;
+  @override
+  void initState() {
+    super.initState();
+    currentUser = widget.user;
+  }
+
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
-
   final List<NavigationItem> _navigationItems = [
     NavigationItem(
       title: 'Dashboard',
@@ -44,7 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     NavigationItem(
       title: 'Users',
       icon: Icons.people,
-      page:  UsersManagementPage(),
+      page: UsersManagementPage(),
     ),
     NavigationItem(
       title: 'Apartments',
@@ -155,8 +166,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Admin User',
+                      Text(
+                        currentUser!.attributes.fullName,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -169,7 +180,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           color: Colors.blue,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.person, color: Colors.white),
+                        child: CircleAvatar(
+                          child: Image.network(
+                            currentUser!.attributes.avatarUrl,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -197,5 +212,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    checkUser();
+    setState(() {});
+  }
+
+  Future<void> checkUser() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await Future.delayed(Duration(seconds: 2));
+    User? user = await User.getUserFromPrefs();
+    String? token = await prefs.getString('token');
+    if (user != null && token != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => DashboardScreen(user: user)),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginPage()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: ModalProgressHUD(
+        inAsyncCall: true,
+        color: Color(0xFFCDE7FC),
+        child: Center(
+          child: Image(image: AssetImage("assets/images/Hommi.png")),
+        ),
+      ),
+    );
   }
 }

@@ -1,9 +1,13 @@
+import 'package:dashboard/core/sample_api/api_method.dart';
+import 'package:dashboard/core/sample_api/api_service.dart';
 import 'package:dashboard/models/api.dart';
 import 'package:dashboard/models/login_model.dart';
+import 'package:dashboard/models/user.dart';
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../widgets/hommi_logo.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,7 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   final _phoneController = TextEditingController(text: "0999999999");
   final _passwordController = TextEditingController(text: 'password');
   bool _obscurePassword = true;
-  bool _isLoading = false;
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -29,7 +33,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: ModalProgressHUD(
-        inAsyncCall: _isLoading,
+        inAsyncCall: isLoading,
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -150,39 +154,59 @@ class _LoginPageState extends State<LoginPage> {
                       height: 50,
                       child: ElevatedButton(
                         onPressed: () async {
-                          // Navigate to dashboard
-                          LoginModel model = LoginModel(
-                            phoneNumber: _phoneController.text,
-                            password: _passwordController.text,
-                          );
-                          Api api = Api();
-                          setState(() {
-                            _isLoading = true;
-                          });
-                          String? token = await api.login(model);
-
-                          if (token != null && token.isNotEmpty) {
-                            print(token);
+                          if (mounted) {
                             setState(() {
-                              _isLoading = false;
+                              isLoading = true;
                             });
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const DashboardScreen(),
-                              ),
-                            );
-                          } else {
-                            setState(() {
-                              _isLoading = false;
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Login failed'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
                           }
+
+                          final result = await SimpleApiService.instance
+                              .makeRequest(
+                                method: ApiMethod.post,
+                                endpoint: "login",
+                                body: {
+                                  "phone_number": _phoneController.text,
+                                  "password": _passwordController.text,
+                                },
+                              );
+
+                          result.fold(
+                            (error) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(error),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+
+                                setState(() {
+                                  isLoading = false;
+                                });
+                              }
+                            },
+                            (data) async {
+                              final User user = User.fromJson(
+                                data['data']['user'],
+                              );
+                              final SharedPreferences prefs =
+                                  await SharedPreferences.getInstance();
+                              user.saveToPrefs();
+                              final String token = data['data']['token'];
+                              await prefs.setString('token', token);
+                              if (mounted) {
+                                setState(() {
+                                  isLoading = false;
+                                });
+                              }
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DashboardScreen(user: user,),
+                                ),
+                              );
+                            },
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,

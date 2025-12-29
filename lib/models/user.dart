@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:dashboard/core/manager/types_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class User {
   final String type;
@@ -16,6 +19,27 @@ class User {
 
   Map<String, dynamic> toJson() {
     return {'type': type, 'id': id, 'attributes': attributes.toJson()};
+  }
+
+  Future<void> saveToPrefs() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String userJson = jsonEncode(toJson());
+    await prefs.setString('user', userJson);
+  }
+
+  static Future<User?> getUserFromPrefs() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userJson = prefs.getString('user');
+    if (userJson != null) {
+      Map<String, dynamic> userMap = jsonDecode(userJson);
+      return User.fromJson(userMap);
+    }
+    return null;
+  }
+
+  static Future<void> removFromPrefs() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user');
   }
 }
 
@@ -46,7 +70,7 @@ class UserAttributes {
 
   factory UserAttributes.fromJson(Map<String, dynamic> json) {
     return UserAttributes(
-      fullName: TypeManager.stringT(json['full_name'] ),
+      fullName: TypeManager.stringT(json['full_name']),
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
       role: json['role'] ?? '',

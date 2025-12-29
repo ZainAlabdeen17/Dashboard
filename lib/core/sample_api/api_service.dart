@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart' as dio;
 import 'package:flutter/foundation.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_const.dart';
 import 'api_method.dart';
 
@@ -11,28 +12,45 @@ class SimpleApiService {
   late dio.Dio _dio;
 
   SimpleApiService._() {
-    _dio = dio.Dio(dio.BaseOptions(
-      baseUrl: ApiConst.baseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization' : 'Bearer 3|2EP26oxp6AKfCJgGAHgoptsBoZsg0MsrGt5xzYFp4b3091bc'
-      },
-    ));
+    _dio = dio.Dio(
+      dio.BaseOptions(
+        baseUrl: ApiConst.baseUrl,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
+    _dio.interceptors.add(
+      dio.InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('token');
+
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+
+          handler.next(options);
+        },
+      ),
+    );
 
     // إضافة interceptors للطباعة و curl logging
     if (!kReleaseMode) {
-      _dio.interceptors.add(PrettyDioLogger(
-        requestHeader: true,
-        requestBody: true,
-        responseBody: true,
-        responseHeader: false,
-        error: true,
-        compact: true,
-        maxWidth: 90,
-      ));
+      _dio.interceptors.add(
+        PrettyDioLogger(
+          requestHeader: true,
+          requestBody: true,
+          responseBody: true,
+          responseHeader: false,
+          error: true,
+          compact: true,
+          maxWidth: 90,
+        ),
+      );
 
       _dio.interceptors.add(CurlLoggerDioInterceptor(printOnSuccess: true));
     }
@@ -42,7 +60,6 @@ class SimpleApiService {
     _instance ??= SimpleApiService._();
     return _instance!;
   }
-
 
   Future<Either<String, dynamic>> makeRequest({
     required ApiMethod method,
@@ -112,4 +129,3 @@ class SimpleApiService {
     }
   }
 }
-
