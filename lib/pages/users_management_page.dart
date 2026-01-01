@@ -4,25 +4,6 @@ import 'package:dashboard/models/user.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
-import '../widgets/stat_card.dart';
-
-class UserDataPagerDelegate extends DataPagerDelegate {
-  UserDataPagerDelegate(this.onPageChanged, this.dataPagerController);
-
-  final Function(int) onPageChanged;
-  final DataPagerController dataPagerController;
-
-  @override
-  Future<bool> handlePageChange(int oldPageIndex, int newPageIndex) async {
-    onPageChanged(newPageIndex + 1); // Convert to 1-based indexing
-    // The controller will be updated in the parent widget after data loads
-    return true;
-  }
-
-  bool canMoveToPage(int pageIndex) {
-    return true; // Allow moving to any page
-  }
-}
 
 class UserDataSource extends DataGridSource {
   UserDataSource(
@@ -30,6 +11,7 @@ class UserDataSource extends DataGridSource {
     this.onVerify,
     this.onDelete, {
     this.totalItems = 0,
+    this.onPageChange,
   }) {
     _buildDataRows();
   }
@@ -38,6 +20,7 @@ class UserDataSource extends DataGridSource {
   int totalItems;
   final Function(String) onVerify;
   final Function(String) onDelete;
+  final Function(int)? onPageChange;
   List<DataGridRow> _dataGridRows = [];
 
   void _buildDataRows() {
@@ -146,10 +129,6 @@ class UserDataSource extends DataGridSource {
                   onPressed: () => onVerify(row.getCells()[6].value),
                 ),
               IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () {},
-              ),
-              IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
                 onPressed: () => onDelete(row.getCells()[6].value),
               ),
@@ -172,8 +151,14 @@ class UserDataSource extends DataGridSource {
 
   @override
   Future<bool> handlePageChange(int oldPageIndex, int newPageIndex) async {
-    // This method is called when the user navigates to a different page
-    // We'll handle this through the parent widget's getAllUser method
+    // Convert from 0-based index to 1-based page number
+    final pageNumber = newPageIndex + 1;
+
+    // Call the callback if provided
+    if (onPageChange != null) {
+      await onPageChange!(pageNumber);
+    }
+
     return true;
   }
 }
@@ -194,21 +179,21 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
 
   // Pagination variables
   int currentPage = 1;
-  int totalPages = 1; // Start with 1 to avoid pageCount = 0 error
+  int lastPage = 1;
   int perPage = 10;
   int totalItems = 0;
+  bool isLoadingPage = false;
 
   late UserDataSource _userDataSource;
-  late DataPagerController _dataPagerController;
-  late UniqueKey _pagerKey;
-  late DataGridController _dataGridController;
-  late UserDataPagerDelegate _dataPagerDelegate;
 
-  Future<void> getAllUser({int? userId, int page = 1}) async {
+  Future<void> getAllUser({int page = 1, int perPage = 10}) async {
     if (mounted) {
       setState(() {
-        isLoading = true;
-        currentPage = page;
+        if (page == 1) {
+          isLoading = true;
+        } else {
+          isLoadingPage = true;
+        }
       });
     }
 
@@ -226,6 +211,7 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
           ).showSnackBar(SnackBar(content: Text(error)));
           setState(() {
             isLoading = false;
+            isLoadingPage = false;
           });
         }
       },
@@ -241,17 +227,13 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
             // Update pagination info
             totalItems = paginationData['meta']['total'] ?? 0;
             perPage = paginationData['meta']['per_page'] ?? 10;
-            totalPages = totalItems > 0 ? (totalItems / perPage).ceil() : 1;
-            // Ensure totalPages is never less than 1
-            if (totalPages < 1) totalPages = 1;
-
-            // Update the pager controller to highlight current page (0-based indexing)
-            _dataPagerController.selectedPageIndex = currentPage - 1;
-
-            // Force pager to rebuild with correct current page
-            _pagerKey = UniqueKey();
+            currentPage = paginationData['meta']['current_page'] ?? 1;
+            lastPage = totalItems > 0 ? (totalItems / perPage).ceil() : 1;
+            // Ensure lastPage is never less than 1
+            if (lastPage < 1) lastPage = 1;
 
             isLoading = false;
+            isLoadingPage = false;
           });
         }
       },
@@ -275,30 +257,18 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
   @override
   void initState() {
     super.initState();
-    _dataPagerController = DataPagerController();
-    _dataGridController = DataGridController();
-    _pagerKey = UniqueKey();
-    _dataPagerDelegate = UserDataPagerDelegate(
-      _handlePageChange,
-      _dataPagerController,
-    );
     _userDataSource = UserDataSource(
       usersList,
       _verifyUser,
       _deleteUser,
       totalItems: totalItems,
+      onPageChange: _handlePageChange,
     );
     getAllUser();
   }
 
-  void _handlePageChange(int pageNumber) {
-    // Force pager to rebuild when page changes
-    if (mounted) {
-      setState(() {
-        _pagerKey = UniqueKey();
-      });
-    }
-    getAllUser(page: pageNumber);
+  Future<void> _handlePageChange(int pageNumber) async {
+    await getAllUser(page: pageNumber, perPage: perPage);
   }
 
   Future<void> _verifyUser(String userId) async {
@@ -318,7 +288,7 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
           const SnackBar(content: Text('User verified successfully')),
         );
         // Refresh the users list to show updated verification status
-        getAllUser();
+        getAllUser(page: currentPage, perPage: perPage);
       },
     );
   }
@@ -340,7 +310,7 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
           const SnackBar(content: Text('User deleted successfully')),
         );
         // Refresh the users list to show updated verification status
-        getAllUser();
+        getAllUser(page: currentPage, perPage: perPage);
       },
     );
   }
@@ -357,109 +327,134 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 30),
-          // Stats Cards
-          Row(
-            children: [
-              Expanded(
-                child: StatCard(
-                  title: 'Total Users',
-                  value: '${usersList.length}',
-                  icon: Icons.people,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Pending Approval',
-                  value: '${CalculatePendingUser()}',
-                  icon: Icons.pending,
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Verified User',
-                  value: '${CalculateVerifiedUser()}',
-                  icon: Icons.check_circle,
-                  color: Colors.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          // Search and Filters
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+
+          // Pagination Controls (Above Table)
+          Visibility(
+            visible: !isLoading && usersList.isNotEmpty,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-                const SizedBox(width: 15),
-                SizedBox(
-                  width: 150,
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Role',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Page info and rows per page
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Page $currentPage of $lastPage • Total: $totalItems users',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue,
+                        ),
                       ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All')),
-                      DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                      DropdownMenuItem(value: 'user', child: Text('User')),
-                    ],
-                    onChanged: (value) {},
-                  ),
-                ),
-                const SizedBox(width: 15),
-                SizedBox(
-                  width: 150,
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Status',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All')),
-                      DropdownMenuItem(value: 'active', child: Text('Active')),
-                      DropdownMenuItem(
-                        value: 'blocked',
-                        child: Text('Blocked'),
+                      Row(
+                        children: [
+                          const Text('Show: ', style: TextStyle(fontSize: 14)),
+                          DropdownButton<int>(
+                            value: perPage,
+                            items: const [
+                              DropdownMenuItem(value: 5, child: Text('5')),
+                              DropdownMenuItem(value: 10, child: Text('10')),
+                              DropdownMenuItem(value: 15, child: Text('15')),
+                              DropdownMenuItem(value: 20, child: Text('20')),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  perPage = value;
+                                });
+                                getAllUser(page: 1, perPage: value);
+                              }
+                            },
+                            underline: const SizedBox(),
+                            icon: const Icon(Icons.arrow_drop_down, size: 20),
+                          ),
+                        ],
                       ),
                     ],
-                    onChanged: (value) {},
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 16),
+
+                  // Navigation buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: currentPage > 1 && !isLoadingPage
+                            ? () => _handlePageChange(1)
+                            : null,
+                        icon: const Icon(Icons.first_page),
+                        tooltip: 'First Page',
+                        color: currentPage > 1 ? Colors.blue : Colors.grey,
+                      ),
+                      IconButton(
+                        onPressed: currentPage > 1 && !isLoadingPage
+                            ? () => _handlePageChange(currentPage - 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_left),
+                        tooltip: 'Previous Page',
+                        color: currentPage > 1 ? Colors.blue : Colors.grey,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Page $currentPage',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: currentPage < lastPage && !isLoadingPage
+                            ? () => _handlePageChange(currentPage + 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                        tooltip: 'Next Page',
+                        color: currentPage < lastPage
+                            ? Colors.blue
+                            : Colors.grey,
+                      ),
+                      IconButton(
+                        onPressed: currentPage < lastPage && !isLoadingPage
+                            ? () => _handlePageChange(lastPage)
+                            : null,
+                        icon: const Icon(Icons.last_page),
+                        tooltip: 'Last Page',
+                        color: currentPage < lastPage
+                            ? Colors.blue
+                            : Colors.grey,
+                      ),
+                    ],
+                  ),
+
+                  if (isLoadingPage)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: LinearProgressIndicator(),
+                    ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+
           // Users Table
           SizedBox(
             height: 600, // تحديد ارتفاع ثابت للجدول
@@ -566,32 +561,8 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
                           allowSorting: true,
                           allowMultiColumnSorting: false,
                           allowTriStateSorting: false,
-                          controller: _dataGridController,
                         ),
                       ),
-                    ),
-                  if (!isLoading && usersList.isNotEmpty)
-                    Column(
-                      children: [
-                        // Items count display
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            'Showing ${(currentPage - 1) * perPage + 1}-${(currentPage * perPage) > totalItems ? totalItems : currentPage * perPage} of $totalItems items',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        SfDataPager(
-                          key: _pagerKey,
-                          controller: _dataPagerController,
-                          pageCount: totalPages.toDouble(),
-                          direction: Axis.horizontal,
-                          delegate: _dataPagerDelegate,
-                        ),
-                      ],
                     ),
                 ],
               ),

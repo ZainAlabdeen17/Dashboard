@@ -119,7 +119,7 @@ class SimpleApiService {
           response.statusCode! < 300) {
         return Right(response.data);
       } else {
-        return Left(response.data['error_message']);
+        return Left(response.data['message']);
       }
     } catch (e) {
       if (e is dio.DioException) {

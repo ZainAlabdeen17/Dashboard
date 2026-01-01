@@ -1,423 +1,192 @@
+import 'package:dashboard/core/sample_api/api_method.dart';
+import 'package:dashboard/core/sample_api/api_service.dart';
+import 'package:dashboard/models/dashboard_data_model.dart';
+import 'package:dashboard/widgets/pie_chart.dart';
+import 'package:dashboard/widgets/pie_chart_with_one_sec.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/activity_item.dart';
 
-class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+class DashboardPage extends StatefulWidget {
+  DashboardPage({super.key});
+  DashboardDataModel? Data;
+  bool isLoading = false;
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  @override
+  void initState() {
+    super.initState();
+    setState(() {
+      loadData();
+    });
+  }
+
+  void loadData() async {
+    if (mounted) {
+      setState(() {
+        widget.isLoading = true;
+      });
+    }
+
+    final result = await SimpleApiService.instance.makeRequest(
+      method: ApiMethod.get,
+      endpoint: "admin/statistics",
+    );
+
+    result.fold(
+      (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error), backgroundColor: Colors.red),
+          );
+
+          setState(() {
+            widget.isLoading = false;
+          });
+        }
+      },
+      (data) async {
+        setState(() {
+          widget.Data = DashboardDataModel.fromJson(data);
+        });
+        setState(() {
+          widget.isLoading = false;
+        });
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Dashboard',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 30),
-          // Stats Cards
-          Row(
-            children: [
-              Expanded(
-                child: StatCard(
-                  title: 'Total Users',
-                  value: '324',
-                  icon: Icons.people,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Active Apartments',
-                  value: '1,256',
-                  icon: Icons.apartment,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Pending Bookings',
-                  value: '47',
-                  icon: Icons.book,
-                  color: Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Total Revenue',
-                  value: '\$50,000',
-                  icon: Icons.attach_money,
-                  color: Colors.purple,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Latest Bookings',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        height: 300,
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY: 300,
-                            barTouchData: BarTouchData(enabled: false),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    const months = [
-                                      'Jan',
-                                      'Feb',
-                                      'Mar',
-                                      'Apr',
-                                      'May',
-                                      'Jun',
-                                      'Jul',
-                                      'Aug',
-                                      'Sep',
-                                      'Oct',
-                                      'Nov',
-                                      'Dec',
-                                    ];
-                                    if (value.toInt() >= 0 &&
-                                        value.toInt() < months.length) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          top: 8.0,
-                                        ),
-                                        child: Text(
-                                          months[value.toInt()],
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    return const Text('');
-                                  },
-                                ),
-                              ),
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 40,
-                                  getTitlesWidget: (value, meta) {
-                                    return Text(
-                                      value.toInt().toString(),
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                            ),
-                            borderData: FlBorderData(show: false),
-                            barGroups: [
-                              BarChartGroupData(
-                                x: 0,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 120,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 1,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 150,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 2,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 180,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 3,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 200,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 4,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 220,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 5,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 240,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 6,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 250,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 7,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 260,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 8,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 265,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 9,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 270,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 10,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 275,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                              BarChartGroupData(
-                                x: 11,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: 270,
-                                    color: Colors.blue,
-                                    width: 20,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+    return ModalProgressHUD(
+      inAsyncCall: widget.isLoading,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Dashboard',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 30),
+            // Stats Cards
+            Row(
+              children: [
+                Expanded(
+                  child: StatCard(
+                    title: 'Total Users',
+                    value: widget.Data?.users.total.toString() ?? "---",
+                    icon: Icons.people,
+                    color: Colors.blue,
                   ),
                 ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Quick Actions',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.check_circle),
-                              label: const Text('Accept Booking'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add Apartment'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.notifications),
-                              label: const Text('Send Notification'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Recent Activities',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          const ActivityItem(
-                            icon: Icons.access_time,
-                            title: 'New login - Mohammed Ali',
-                            color: Colors.blue,
-                          ),
-                          const SizedBox(height: 15),
-                          const ActivityItem(
-                            icon: Icons.check_circle,
-                            title: 'Booking completed for apartment #101',
-                            color: Colors.green,
-                          ),
-                          const SizedBox(height: 15),
-                          const ActivityItem(
-                            icon: Icons.check_circle,
-                            title: 'Profile updated',
-                            color: Colors.green,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 15),
+                Expanded(
+                  child: StatCard(
+                    title: 'pending Users',
+                    value: widget.Data?.users.pending.toString() ?? "---",
+                    icon: Icons.people,
+                    color: Colors.yellow,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 15),
+                Expanded(
+                  child: StatCard(
+                    title: 'Active Users',
+                    value: widget.Data?.users.active.toString() ?? "---",
+                    icon: Icons.people,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
+            Row(
+              children: [
+                Expanded(
+                  child: StatCard(
+                    title: 'Total Apartments',
+                    value: widget.Data?.apartements.total.toString() ?? "---",
+                    icon: Icons.book,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: StatCard(
+                    title: 'Rented Apartments',
+                    value: widget.Data?.apartements.rented.toString() ?? "---",
+                    icon: Icons.book,
+                    color: Colors.yellow,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: StatCard(
+                    title: 'Available Apartments',
+                    value:
+                        widget.Data?.apartements.available.toString() ?? "---",
+                    icon: Icons.book,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 60),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                MyPieChart(
+                  mainTitle: 'Tanents\n&\nLandlords',
+                  value1:
+                      (((widget.Data?.users.tanents ?? 1) /
+                          ((widget.Data?.users.tanents ?? 1) +
+                              (widget.Data?.users.landlords ?? 1))) *
+                      100),
+                  title1: "Tanents",
+                  value2:
+                      (((widget.Data?.users.landlords ?? 1) /
+                          ((widget.Data?.users.tanents ?? 1) +
+                              (widget.Data?.users.landlords ?? 1))) *
+                      100),
+                  title2: "Landlords",
+                  color1: Colors.blue,
+                  color2: Colors.grey,
+                ),
+                SizedBox(width: 40),
+                PieChartWithOneSec(
+                  mainTitle:
+                      "${widget.Data?.finance.totalRevenue.toString()}\$",
+                  value1: 80,
+                  color1: Colors.purple,
+                  title: "Total Revenue",
+                ),
+                MyPieChart(
+                  mainTitle: "Apartments",
+                  value1:
+                      (widget.Data?.apartements.rented ?? 1) /
+                      (widget.Data?.apartements.total ?? 1) *
+                      100,
+                  title1: "Rented",
+                  value2:
+                      (widget.Data?.apartements.available ?? 1) /
+                      (widget.Data?.apartements.total ?? 1) *
+                      100,
+                  title2: "Available",
+                  color1: Colors.grey,
+                  color2: Colors.green,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

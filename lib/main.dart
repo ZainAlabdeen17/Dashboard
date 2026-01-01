@@ -8,6 +8,7 @@ import 'pages/users_management_page.dart';
 import 'pages/apartments_management_page.dart';
 import 'pages/placeholder_page.dart';
 import 'pages/login_page.dart';
+import 'pages/settings_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -23,7 +24,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'Arial'),
       home: SplashScreen(),
-      routes: {'/dashboard': (context) => const DashboardScreen()},
+      routes: {
+        '/dashboard': (context) => const DashboardScreen(),
+        '/login': (context) => const LoginPage(),
+      },
     );
   }
 }
@@ -50,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     NavigationItem(
       title: 'Dashboard',
       icon: Icons.dashboard,
-      page: const DashboardPage(),
+      page: DashboardPage(),
     ),
     NavigationItem(
       title: 'Users',
@@ -71,13 +75,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     NavigationItem(
       title: 'Settings',
       icon: Icons.settings,
-      page: const PlaceholderPage(title: 'Settings'),
+      page: const SettingsPage(),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFCDE7FC),
       body: Row(
         children: [
           // Sidebar
@@ -181,9 +186,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: CircleAvatar(
-                          child: Image.network(
-                            currentUser!.attributes.avatarUrl,
-                          ),
+                          child: Icon(Icons.person, color: Colors.blue),
                         ),
                       ),
                     ],

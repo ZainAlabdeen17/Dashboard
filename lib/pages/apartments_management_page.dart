@@ -13,6 +13,7 @@ class ApartmentDataSource extends DataGridSource {
     this.onEdit,
     this.onDelete, {
     this.totalItems = 0,
+    this.onPageChange,
   }) {
     _buildDataRows();
   }
@@ -22,6 +23,7 @@ class ApartmentDataSource extends DataGridSource {
   final Function(String) onViewDetails;
   final Function(String) onEdit;
   final Function(String) onDelete;
+  final Function(int)? onPageChange;
   List<DataGridRow> _dataGridRows = [];
 
   void _buildDataRows() {
@@ -165,16 +167,6 @@ class ApartmentDataSource extends DataGridSource {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.visibility, color: Colors.blue),
-                tooltip: 'View Details',
-                onPressed: () => onViewDetails(row.getCells()[7].value),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.orange),
-                tooltip: 'Edit Apartment',
-                onPressed: () => onEdit(row.getCells()[7].value),
-              ),
-              IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
                 tooltip: 'Delete Apartment',
                 onPressed: () => onDelete(row.getCells()[7].value),
@@ -198,8 +190,14 @@ class ApartmentDataSource extends DataGridSource {
 
   @override
   Future<bool> handlePageChange(int oldPageIndex, int newPageIndex) async {
-    // This method is called when the user navigates to a different page
-    // We'll handle this through the parent widget's getAllApartments method
+    // Convert from 0-based index to 1-based page number
+    final pageNumber = newPageIndex + 1;
+
+    // Call the callback if provided
+    if (onPageChange != null) {
+      await onPageChange!(pageNumber);
+    }
+
     return true;
   }
 }
@@ -220,19 +218,30 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
   int occupiedApartments = 0;
   int maintenanceApartments = 0;
 
-  late ApartmentDataSource _apartmentDataSource;
-  late DataGridController _dataGridController;
+  // Pagination variables
+  int currentPage = 1;
+  int lastPage = 1;
+  int perPage = 10;
+  int totalItems = 0;
+  bool isLoadingPage = false;
 
-  Future<void> getAllApartments() async {
+  late ApartmentDataSource _apartmentDataSource;
+
+  Future<void> getAllApartments({int page = 1, int perPage = 10}) async {
     if (mounted) {
       setState(() {
-        isLoading = true;
+        if (page == 1) {
+          isLoading = true;
+        } else {
+          isLoadingPage = true;
+        }
       });
     }
 
     final result = await SimpleApiService.instance.makeRequest(
       method: ApiMethod.get,
       endpoint: "apartments",
+      queryParams: {'page': page.toString(), 'per_page': perPage.toString()},
     );
 
     result.fold(
@@ -243,6 +252,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
           ).showSnackBar(SnackBar(content: Text(error)));
           setState(() {
             isLoading = false;
+            isLoadingPage = false;
           });
         }
       },
@@ -270,12 +280,27 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
               apartmentsList = [];
             }
 
-            _apartmentDataSource.updateDataSource(apartmentsList);
+            // Parse pagination data
+            final meta = apartmentsData['meta'];
+            if (meta != null) {
+              currentPage = meta['current_page'] ?? 1;
+              lastPage = meta['last_page'] ?? 1;
+              perPage = meta['per_page'] ?? 10;
+              totalItems = meta['total'] ?? 0;
+            }
 
-            // Calculate stats
-            _calculateStats();
+            _apartmentDataSource.updateDataSource(
+              apartmentsList,
+              totalItems: totalItems,
+            );
+
+            // Calculate stats only on first page load
+            if (page == 1) {
+              _calculateStats();
+            }
 
             isLoading = false;
+            isLoadingPage = false;
           });
         }
       },
@@ -299,12 +324,13 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
   @override
   void initState() {
     super.initState();
-    _dataGridController = DataGridController();
     _apartmentDataSource = ApartmentDataSource(
       apartmentsList,
       _viewApartmentDetails,
       _editApartment,
       _deleteApartment,
+      totalItems: totalItems,
+      onPageChange: _handlePageChange,
     );
     getAllApartments();
   }
@@ -340,9 +366,13 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
           const SnackBar(content: Text('Apartment deleted successfully')),
         );
         // Refresh the apartments list
-        getAllApartments();
+        getAllApartments(page: currentPage, perPage: perPage);
       },
     );
+  }
+
+  Future<void> _handlePageChange(int pageNumber) async {
+    await getAllApartments(page: pageNumber, perPage: perPage);
   }
 
   @override
@@ -357,170 +387,134 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 30),
-          // Stats Cards
-          Row(
-            children: [
-              Expanded(
-                child: StatCard(
-                  title: 'Total Apartments',
-                  value: '${apartmentsList.length}',
-                  icon: Icons.apartment,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Premium (3+ Rooms)',
-                  value: '$availableApartments',
-                  icon: Icons.star,
-                  color: Colors.purple,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Standard (2 Rooms)',
-                  value: '$occupiedApartments',
-                  icon: Icons.home,
-                  color: Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: StatCard(
-                  title: 'Basic (1 Room)',
-                  value: '$maintenanceApartments',
-                  icon: Icons.single_bed,
-                  color: Colors.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          // Quick Stats Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Average Area: ${_calculateAverageArea()} m²',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Average Price: S.P ${_calculateAveragePrice()}',
-                      style: const TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    // TODO: Navigate to add apartment page
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 30,
-                      vertical: 15,
-                    ),
+
+          // Pagination Controls
+          if (!isLoading && apartmentsList.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
                   ),
-                  child: const Text('Add New Apartment'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 30),
-          // Search and Filters
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search apartments...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Page info and rows per page
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Page $currentPage of $lastPage • Total: $totalItems apartments',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue,
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 15),
-                SizedBox(
-                  width: 150,
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Rooms',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      Row(
+                        children: [
+                          const Text('Show: ', style: TextStyle(fontSize: 14)),
+                          DropdownButton<int>(
+                            value: perPage,
+                            items: const [
+                              DropdownMenuItem(value: 5, child: Text('5')),
+                              DropdownMenuItem(value: 10, child: Text('10')),
+                              DropdownMenuItem(value: 15, child: Text('15')),
+                              DropdownMenuItem(value: 20, child: Text('20')),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  perPage = value;
+                                });
+                                getAllApartments(page: 1, perPage: value);
+                              }
+                            },
+                            underline: const SizedBox(),
+                            icon: const Icon(Icons.arrow_drop_down, size: 20),
+                          ),
+                        ],
                       ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All Rooms')),
-                      DropdownMenuItem(value: '1', child: Text('1 Room')),
-                      DropdownMenuItem(value: '2', child: Text('2 Rooms')),
-                      DropdownMenuItem(value: '3', child: Text('3 Rooms')),
-                      DropdownMenuItem(value: '4', child: Text('4+ Rooms')),
                     ],
-                    onChanged: (value) {},
                   ),
-                ),
-                const SizedBox(width: 15),
-                SizedBox(
-                  width: 150,
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Location',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+
+                  const SizedBox(height: 16),
+
+                  // Navigation buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: currentPage > 1 && !isLoadingPage
+                            ? () => _handlePageChange(1)
+                            : null,
+                        icon: const Icon(Icons.first_page),
+                        tooltip: 'First Page',
+                        color: currentPage > 1 ? Colors.blue : Colors.grey,
                       ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All')),
-                      DropdownMenuItem(value: 'jeddah', child: Text('Jeddah')),
-                      DropdownMenuItem(value: 'riyadh', child: Text('Riyadh')),
+                      IconButton(
+                        onPressed: currentPage > 1 && !isLoadingPage
+                            ? () => _handlePageChange(currentPage - 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_left),
+                        tooltip: 'Previous Page',
+                        color: currentPage > 1 ? Colors.blue : Colors.grey,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Page $currentPage',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: currentPage < lastPage && !isLoadingPage
+                            ? () => _handlePageChange(currentPage + 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                        tooltip: 'Next Page',
+                        color: currentPage < lastPage
+                            ? Colors.blue
+                            : Colors.grey,
+                      ),
+                      IconButton(
+                        onPressed: currentPage < lastPage && !isLoadingPage
+                            ? () => _handlePageChange(lastPage)
+                            : null,
+                        icon: const Icon(Icons.last_page),
+                        tooltip: 'Last Page',
+                        color: currentPage < lastPage
+                            ? Colors.blue
+                            : Colors.grey,
+                      ),
                     ],
-                    onChanged: (value) {},
                   ),
-                ),
-              ],
+
+                  if (isLoadingPage)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: LinearProgressIndicator(),
+                    ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+
+          if (!isLoading && apartmentsList.isNotEmpty)
+            const SizedBox(height: 20),
+
           // Apartments Table
           SizedBox(
             height: 600,
@@ -639,7 +633,6 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                           allowSorting: true,
                           allowMultiColumnSorting: false,
                           allowTriStateSorting: false,
-                          controller: _dataGridController,
                         ),
                       ),
                     ),
