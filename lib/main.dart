@@ -6,7 +6,7 @@ import 'models/navigation_item.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/users_management_page.dart';
 import 'pages/apartments_management_page.dart';
-import 'pages/placeholder_page.dart';
+import 'pages/bookings_management_page.dart';
 import 'pages/login_page.dart';
 import 'pages/settings_page.dart';
 
@@ -69,7 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     NavigationItem(
       title: 'Bookings',
       icon: Icons.book,
-      page: const PlaceholderPage(title: 'Bookings'),
+      page: const BookingsManagementPage(),
     ),
 
     NavigationItem(

@@ -202,7 +202,8 @@ class _LoginPageState extends State<LoginPage> {
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => DashboardScreen(user: user,),
+                                  builder: (context) =>
+                                      DashboardScreen(user: user),
                                 ),
                               );
                             },

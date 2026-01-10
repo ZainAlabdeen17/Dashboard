@@ -163,7 +163,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 SizedBox(width: 40),
                 PieChartWithOneSec(
                   mainTitle:
-                      "${widget.Data?.finance.totalRevenue.toString()}\$",
+                      "${widget.Data?.finance.totalRevenue.toString() ?? "---"}\$",
                   value1: 80,
                   color1: Colors.purple,
                   title: "Total Revenue",
