@@ -365,10 +365,7 @@ class _UsersManagementPageState extends State<UsersManagementPage> {
                           DropdownButton<int>(
                             value: perPage,
                             items: const [
-                              DropdownMenuItem(value: 5, child: Text('5')),
                               DropdownMenuItem(value: 10, child: Text('10')),
-                              DropdownMenuItem(value: 15, child: Text('15')),
-                              DropdownMenuItem(value: 20, child: Text('20')),
                             ],
                             onChanged: (value) {
                               if (value != null) {
