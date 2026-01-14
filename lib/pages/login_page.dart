@@ -1,7 +1,5 @@
 import 'package:dashboard/core/sample_api/api_method.dart';
 import 'package:dashboard/core/sample_api/api_service.dart';
-import 'package:dashboard/models/api.dart';
-import 'package:dashboard/models/login_model.dart';
 import 'package:dashboard/models/user.dart';
 import 'package:flutter/material.dart';
 import '../main.dart';

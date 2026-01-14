@@ -4,11 +4,10 @@ import 'package:dashboard/models/dashboard_data_model.dart';
 import 'package:dashboard/widgets/pie_chart.dart';
 import 'package:dashboard/widgets/pie_chart_with_one_sec.dart';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:modal_progress_hud_nsn/modal_progress_hud_nsn.dart';
 import '../widgets/stat_card.dart';
-import '../widgets/activity_item.dart';
 
+// ignore: must_be_immutable
 class DashboardPage extends StatefulWidget {
   DashboardPage({super.key});
   DashboardDataModel? Data;

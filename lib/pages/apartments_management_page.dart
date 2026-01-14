@@ -4,13 +4,11 @@ import 'package:dashboard/models/apartment.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
-import '../widgets/stat_card.dart';
 
 class ApartmentDataSource extends DataGridSource {
   ApartmentDataSource(
     this.apartments,
-    this.onViewDetails,
-    this.onEdit,
+    
     this.onDelete, {
     this.totalItems = 0,
     this.onPageChange,
@@ -20,8 +18,6 @@ class ApartmentDataSource extends DataGridSource {
 
   final List<Apartment> apartments;
   int totalItems;
-  final Function(String) onViewDetails;
-  final Function(String) onEdit;
   final Function(String) onDelete;
   final Function(int)? onPageChange;
   List<DataGridRow> _dataGridRows = [];
@@ -214,9 +210,6 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
   List<Apartment> apartmentsList = [];
   bool isLoading = true;
   int totalApartments = 0;
-  int availableApartments = 0;
-  int occupiedApartments = 0;
-  int maintenanceApartments = 0;
 
   // Pagination variables
   int currentPage = 1;
@@ -260,7 +253,6 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
         final apartmentsData = data;
         if (mounted) {
           setState(() {
-            // Safely parse apartments data with null checking
             final dataList = apartmentsData['data'];
             if (dataList is List && dataList.isNotEmpty) {
               apartmentsList = List<Apartment>.from(
@@ -269,7 +261,6 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                       try {
                         return Apartment.fromJson(item);
                       } catch (e) {
-                        // Log error and skip invalid items
                         return null;
                       }
                     })
@@ -294,10 +285,6 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
               totalItems: totalItems,
             );
 
-            // Calculate stats only on first page load
-            if (page == 1) {
-              _calculateStats();
-            }
 
             isLoading = false;
             isLoadingPage = false;
@@ -307,27 +294,13 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
     );
   }
 
-  void _calculateStats() {
-    totalApartments = apartmentsList.length;
-    // Since the API doesn't provide status, we'll categorize by room count
-    availableApartments = apartmentsList
-        .where((apt) => apt.attributes.specs.rooms >= 3)
-        .length; // Consider 3+ rooms as "premium"
-    occupiedApartments = apartmentsList
-        .where((apt) => apt.attributes.specs.rooms == 2)
-        .length; // 2 rooms as "standard"
-    maintenanceApartments = apartmentsList
-        .where((apt) => apt.attributes.specs.rooms <= 1)
-        .length; // 1 room or less as "basic"
-  }
+  
 
   @override
   void initState() {
     super.initState();
     _apartmentDataSource = ApartmentDataSource(
       apartmentsList,
-      _viewApartmentDetails,
-      _editApartment,
       _deleteApartment,
       totalItems: totalItems,
       onPageChange: _handlePageChange,
@@ -335,19 +308,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
     getAllApartments();
   }
 
-  Future<void> _viewApartmentDetails(String apartmentId) async {
-    // TODO: Navigate to apartment details page
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('View details for apartment $apartmentId')),
-    );
-  }
-
-  Future<void> _editApartment(String apartmentId) async {
-    // TODO: Navigate to edit apartment page
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Edit apartment $apartmentId')));
-  }
+ 
 
   Future<void> _deleteApartment(String apartmentId) async {
     final result = await SimpleApiService.instance.makeRequest(
@@ -406,7 +367,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
               ),
               child: Column(
                 children: [
-                  // Page info and rows per page
+                  
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -423,10 +384,9 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                           DropdownButton<int>(
                             value: perPage,
                             items: const [
-                              DropdownMenuItem(value: 5, child: Text('5')),
+                              
                               DropdownMenuItem(value: 10, child: Text('10')),
-                              DropdownMenuItem(value: 15, child: Text('15')),
-                              DropdownMenuItem(value: 20, child: Text('20')),
+                              
                             ],
                             onChanged: (value) {
                               if (value != null) {
@@ -579,7 +539,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                                 alignment: Alignment.center,
                                 child: const Text('Area (m²)'),
                               ),
-                              width: 100,
+                              width: 160,
                             ),
                             GridColumn(
                               columnName: 'price',
@@ -597,7 +557,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                                 alignment: Alignment.center,
                                 child: const Text('Rooms'),
                               ),
-                              width: 80,
+                              width: 100,
                             ),
                             GridColumn(
                               columnName: 'floor',
@@ -606,7 +566,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                                 alignment: Alignment.center,
                                 child: const Text('Floor'),
                               ),
-                              width: 70,
+                              width: 100,
                             ),
                             GridColumn(
                               columnName: 'features',
@@ -615,7 +575,7 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                                 alignment: Alignment.centerLeft,
                                 child: const Text('Features'),
                               ),
-                              width: 150,
+                              width: 130,
                             ),
                             GridColumn(
                               columnName: 'actions',
@@ -624,15 +584,14 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
                                 alignment: Alignment.center,
                                 child: const Text('Actions'),
                               ),
-                              width: 180,
+                              width: 100,
                             ),
                           ],
                           columnWidthMode: ColumnWidthMode.fill,
                           gridLinesVisibility: GridLinesVisibility.both,
                           headerGridLinesVisibility: GridLinesVisibility.both,
                           allowSorting: true,
-                          allowMultiColumnSorting: false,
-                          allowTriStateSorting: false,
+                          
                         ),
                       ),
                     ),
@@ -643,21 +602,5 @@ class _ApartmentsManagementPageState extends State<ApartmentsManagementPage> {
         ],
       ),
     );
-  }
-
-  String _calculateAverageArea() {
-    if (apartmentsList.isEmpty) return '0';
-    final totalArea = apartmentsList
-        .map((apt) => apt.attributes.specs.area)
-        .reduce((a, b) => a + b);
-    return (totalArea / apartmentsList.length).round().toString();
-  }
-
-  String _calculateAveragePrice() {
-    if (apartmentsList.isEmpty) return '0';
-    final totalPrice = apartmentsList
-        .map((apt) => apt.attributes.price)
-        .reduce((a, b) => a + b);
-    return (totalPrice / apartmentsList.length).round().toString();
   }
 }

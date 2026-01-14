@@ -21,7 +21,6 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       isLodding = true;
     });
-    SharedPreferences prefs = await SharedPreferences.getInstance();
     user = await User.getUserFromPrefs();
     setState(() {
       isLodding = false;
